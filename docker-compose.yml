@@ -23,7 +23,7 @@ services:
   cjoc:
     container_name: cjoc
     #https://hub.docker.com/r/cloudbees/jenkins-operations-center/
-    image: cloudbees/jenkins-operations-center:2.204.2.2
+    image: cloudbees/jenkins-operations-center:2.204.3.7
     ports:
       - "50000:50000"
     environment:
@@ -45,7 +45,7 @@ services:
   cje-prod:
     container_name: cje-prod
     #https://hub.docker.com/r/cloudbees/jenkins-enterprise/
-    image: cloudbees/jenkins-enterprise:2.204.2.2
+    image: cloudbees/jenkins-enterprise:2.204.3.7
     ports:
       - "50001:50001"
     environment:
