@@ -17,8 +17,31 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/logs:/var/log/nginx
+      - ./certs/cjp.local.key:/etc/nginx/cjp.local.key:ro
+      - ./certs/cjp.local.crt:/etc/nginx/cjp.local.crt:ro
     depends_on: #to force proxy to start after:
       - cjoc
+
+  idp:
+    container_name: idp
+    image: kristophjunge/test-saml-idp
+    ports:
+      - "8443:8443"
+    environment:
+      - SIMPLESAMLPHP_SP_ENTITY_ID=https://cjp.local/cjoc/securityRealm/finishLogin
+      - SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE=https://cjp.local/cjoc/securityRealm/finishLogin
+      - SIMPLESAMLPHP_SP_SINGLE_LOGOUT_SERVICE=https://cjp.local/cjoc/securityRealm/finishLogin
+    volumes:
+      - ./simplesamlphp/config:/var/www/simplesamlphp/config
+      - ./simplesamlphp/config/local-users.php:/var/www/simplesamlphp/config/authsources.php
+      - ./simplesamlphp/metadata:/var/www/simplesamlphp/metadata
+      - ./simplesamlphp/modules/authcrypt-enable:/var/www/simplesamlphp/modules/authcrypt/enable
+      - ./simplesamlphp/apache2/simplesamlphp.conf:/etc/apache2/sites-available/simplesamlphp.conf
+      - ./simplesamlphp/apache2/apache2.conf:/etc/apache2/apache2.conf
+      - ./simplesamlphp/apache2/ports.conf:/etc/apache2/ports.conf
+      - ./certs/idp.local.crt:/etc/ssl/cert/idp.local.crt:ro
+      - ./certs/idp.local.key:/etc/ssl/private/idp.local.key:ro
+      - ./data/simplesamlphp/logs:/var/log/apache2
 
   cjoc:
     container_name: cjoc
@@ -36,81 +59,12 @@ services:
         -Dhudson.udp=-1
         -Dhudson.DNSMultiCast.disabled=true
         -Djava.awt.headless=true
+        -Djavax.net.ssl.trustStore=/var/jenkins_home/cacerts
+        -Djavax.net.ssl.trustStorePassword=changeit
         -Dorg.apache.commons.jelly.tags.fmt.timeZone=America/New_York
         "
       JENKINS_OPTS: "--prefix=/cjoc"
     volumes:
       - ./data/cjoc:/var/jenkins_home
       - ./data/backups:/backups
-
-  cje-prod:
-    container_name: cje-prod
-    #https://hub.docker.com/r/cloudbees/jenkins-enterprise/
-    image: cloudbees/jenkins-enterprise:2.249.3.2
-    ports:
-      - "50001:50001"
-    environment:
-      JENKINS_SLAVE_AGENT_PORT: "50001"
-      JENKINS_HA: "false"
-      JAVA_OPTS: "
-        -Dhudson.TcpSlaveAgentListener.hostName=cje-prod
-        -Dhudson.TcpSlaveAgentListener.port=50001
-        -Dhudson.udp=-1
-        -Dhudson.DNSMultiCast.disabled=true
-        -Djava.awt.headless=true
-        -Dorg.apache.commons.jelly.tags.fmt.timeZone=America/New_York
-        "
-      JENKINS_OPTS: "--prefix=/cje-prod"
-    volumes:
-      - ./data/cje-prod:/var/jenkins_home
-      - ./data/backups:/backups
-      - ./certs/cacerts:/var/jenkins_home/cacerts:ro
-    volumes_from:
-      - ssh-slave
-
-  cje-test:
-    container_name: cje-test
-    build:
-      context: ./docker/
-      dockerfile: Dockerfile.cje-test #based on the same image as cje-prod
-    ports:
-      - "50002:50002"
-    environment:
-      JENKINS_SLAVE_AGENT_PORT: "50002"
-      JENKINS_HA: "false"
-      JAVA_OPTS: "
-        -Dhudson.TcpSlaveAgentListener.hostName=cje-test
-        -Dhudson.TcpSlaveAgentListener.port=50002
-        -Dhudson.udp=-1
-        -Dhudson.DNSMultiCast.disabled=true
-        -Djava.awt.headless=true
-        -Dorg.apache.commons.jelly.tags.fmt.timeZone=America/New_York
-        "
-      JENKINS_OPTS: "--prefix=/cje-test"
-    volumes:
-      - ./data/cje-test:/var/jenkins_home
-      - ./data/backups:/backups
-    volumes_from:
-      - ssh-slave
-
-  ssh-slave:
-    container_name: ssh-slave
-    build:
-      context: ./docker/
-      dockerfile: Dockerfile.ssh-slave
-    #this part is specific to your environment.. see README
-    command: ["${SSH_SLAVE_COMMAND}"]
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock #aka "docker socket volume mapping"
-      - ${MAVEN_CACHE} #to persist and share the precious maven cache
-
-  #https://hub.docker.com/r/verb/socat/
-  #clever way to expose host docker engine to internal services
-  docker-service:
-    container_name: docker-service
-    image: verb/socat:alpine
-    command: tcp-listen:2375,reuseaddr,fork unix:/docker.sock
-    expose:
-      - "2375"
-    volumes:
-      - /var/run/docker.sock:/docker.sock
+      - ./certs/cacerts:/var/jenkins_home/cacerts

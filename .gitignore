@@ -1,3 +1,4 @@
 nginx/logs/
 data/
 .env
+local-users.php
